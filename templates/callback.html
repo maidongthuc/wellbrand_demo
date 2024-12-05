@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Page Info</title>
+    <script>
+        // Dynamically inject the Access Token and Page ID from the server
+        const accessToken = "{{ access_token }}";
+        const pageId = "{{ user_id }}"; // Using user ID as Page ID in this context
+
+        async function fetchPageInfo() {
+            try {
+                // Fetch page details (name, followers, likes)
+                const pageResponse = await fetch(`https://graph.facebook.com/v17.0/${pageId}?fields=name,followers_count,fan_count&access_token=${accessToken}`);
+                const pageData = await pageResponse.json();
+
+                if (pageData.error) {
+                    throw new Error(pageData.error.message);
+                }
+
+                // Fetch posts (IDs, message, created_time)
+                const postsResponse = await fetch(`https://graph.facebook.com/v17.0/${pageId}/posts?fields=id,message,created_time&access_token=${accessToken}`);
+                const postsData = await postsResponse.json();
+
+                if (postsData.error) {
+                    throw new Error(postsData.error.message);
+                }
+
+                // Display the page info
+                document.getElementById("pageName").textContent = pageData.name || "N/A";
+                document.getElementById("followersCount").textContent = pageData.followers_count || "N/A";
+                document.getElementById("likesCount").textContent = pageData.fan_count || "N/A";
+
+                // Display all post details and fetch comments for each post
+                const postsContainer = document.getElementById("postDetails");
+                for (const post of postsData.data) {
+                    const listItem = document.createElement("li");
+                    listItem.innerHTML = `
+                        <strong>Post ID:</strong> ${post.id} <br>
+                        <strong>Message:</strong> ${post.message || "No message"} <br>
+                        <strong>Created Time:</strong> ${post.created_time || "No time available"} <br>
+                        <strong>Comments:</strong> <ul id="comments-${post.id}">Loading comments...</ul>
+                    `;
+                    postsContainer.appendChild(listItem);
+
+                    // Fetch comments for each post
+                    fetchComments(post.id);
+                }
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                document.getElementById("error").textContent = error.message;
+            }
+        }
+
+        async function fetchComments(postId) {
+            try {
+                const commentsResponse = await fetch(`https://graph.facebook.com/v17.0/${postId}/comments?fields=message,from,created_time&access_token=${accessToken}`);
+                const commentsData = await commentsResponse.json();
+
+                if (commentsData.error) {
+                    throw new Error(commentsData.error.message);
+                }
+
+                // Display comments for the post
+                const commentsContainer = document.getElementById(`comments-${postId}`);
+                commentsContainer.innerHTML = ""; // Clear loading message
+                commentsData.data.forEach(comment => {
+                    const commentItem = document.createElement("li");
+                    commentItem.innerHTML = `
+                        <strong>User:</strong> ${comment.from ? comment.from.name : "Anonymous"} <br>
+                        <strong>Message:</strong> ${comment.message || "No content"} <br>
+                        <strong>Time:</strong> ${comment.created_time || "Unknown time"}
+                    `;
+                    commentsContainer.appendChild(commentItem);
+                });
+            } catch (error) {
+                console.error(`Error fetching comments for post ${postId}:`, error);
+                const commentsContainer = document.getElementById(`comments-${postId}`);
+                commentsContainer.textContent = "Error loading comments.";
+            }
+        }
+
+        // Call the function to fetch page info on page load
+        window.onload = fetchPageInfo;
+    </script>
+</head>
+<body>
+    <h1>WellBrand Analyze Facebook Page</h1>
+    <p><strong>Page Name:</strong> <span id="pageName">Loading...</span></p>
+    <p><strong>Followers:</strong> <span id="followersCount">Loading...</span></p>
+    <p><strong>Likes:</strong> <span id="likesCount">Loading...</span></p>
+    <h2>Post Details:</h2>
+    <ul id="postDetails"></ul>
+    <p id="error" style="color: red;"></p>
+</body>
+</html>
